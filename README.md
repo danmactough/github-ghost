@@ -30,6 +30,8 @@ Setup also offers to create a `gh` symlink next to the first `github-ghost` in `
 
 The wrapper skips itself when it looks for the real `gh`.
 
+`github-ghost ghost --version` or `-v` prints the version.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -61,3 +63,13 @@ Issue URLs name their own repository, so commands given URLs run unchanged.
 - `gh api` and `gh search issues` are not rewritten.
 - User-defined `gh` aliases are not expanded, so they run unchanged.
 - An unknown `gh issue` flag is an error, because the wrapper can't tell whether the next argument is that flag's value. A new `gh` flag needs an entry in the `commands` table in `main.go`.
+
+## Release
+
+Commit everything on `main`, then run:
+
+```bash
+make release VERSION=v0.1.0
+```
+
+This runs the checks and tests, builds macOS and Linux archives for arm64 and amd64 in `dist/v0.1.0`, pushes the tag, and creates a GitHub release with the archives and `checksums.txt`.

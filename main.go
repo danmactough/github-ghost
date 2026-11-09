@@ -22,6 +22,9 @@ import (
 	"syscall"
 )
 
+// version is set at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
 type repo struct{ owner, name string }
 
 func (r repo) String() string { return r.owner + "/" + r.name }
@@ -793,12 +796,22 @@ func execGH(realGH string, args []string) error {
 	return syscall.Exec(realGH, append([]string{"gh"}, args...), os.Environ())
 }
 
+func runGhostCommand(args []string, out io.Writer) error {
+	if len(args) == 1 {
+		switch args[0] {
+		case "--version", "-v":
+			fmt.Fprintln(out, version)
+			return nil
+		case "--install":
+			return runInstall(installOptions{in: os.Stdin, out: out, getenv: os.Getenv})
+		}
+	}
+	return errors.New("usage: github-ghost ghost --install | --version | -v")
+}
+
 func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "ghost" {
-		if len(os.Args) != 3 || os.Args[2] != "--install" {
-			return errors.New("usage: github-ghost ghost --install")
-		}
-		return runInstall(installOptions{in: os.Stdin, out: os.Stdout, getenv: os.Getenv})
+		return runGhostCommand(os.Args[2:], os.Stdout)
 	}
 
 	realGH, err := findRealGH(os.Getenv)

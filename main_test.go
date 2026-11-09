@@ -546,3 +546,24 @@ func TestShellQuote(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+func TestGhostVersion(t *testing.T) {
+	for _, flag := range []string{"--version", "-v"} {
+		var out bytes.Buffer
+		if err := runGhostCommand([]string{flag}, &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.String() != version+"\n" {
+			t.Fatalf("%s printed %q", flag, out.String())
+		}
+	}
+}
+
+func TestGhostUsage(t *testing.T) {
+	for _, args := range [][]string{nil, {"--bogus"}, {"--version", "extra"}} {
+		err := runGhostCommand(args, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "usage:") {
+			t.Fatalf("%q: got %v", args, err)
+		}
+	}
+}
