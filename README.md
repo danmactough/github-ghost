@@ -1,38 +1,50 @@
-# github-ghost
+<p align="center">
+  <img src="assets/ghost.svg" alt="👻" width="160" height="160">
+</p>
+
+<h1 align="center">github-ghost</h1>
+
+<p align="center"><em>One private issues repo, quietly haunting all your projects.</em></p>
 
 A wrapper around the `gh` CLI that makes one private issues repository behave like many repositories. Each repository maps to a label in the issues repository, so `gh issue list` in a checkout of `owner/widget` shows the issues labeled `repo: owner/widget`.
 
 Only `gh issue ...` commands are rewritten. Everything else goes to the real `gh` unchanged.
 
-## Install
+## 🪄 Install
 
-```bash
-make install
-```
+github-ghost runs on macOS and Linux. You need [`gh`](https://cli.github.com) installed and signed in, and `~/.local/bin` in your `PATH`.
 
-This installs to `~/.local/bin`. Set `PREFIX` or `BINDIR` to install somewhere else. `make build`, `make test`, `make vet`, `make fmt`, `make uninstall`, and `make clean` are also available.
+1. Download the latest release for your machine:
 
-For interactive shells:
+   ```bash
+   os=$(uname -s | tr '[:upper:]' '[:lower:]')
+   arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+   gh release download --repo danmactough/github-ghost --pattern "*_${os}_${arch}.tar.gz"
+   ```
 
-```bash
-alias gh=github-ghost
-```
+2. Unpack it and install the binary:
 
-Shell aliases don't apply to scripts or coding agents. Run the interactive setup:
+   ```bash
+   tar -xzf github-ghost_*_${os}_${arch}.tar.gz
+   install -d ~/.local/bin
+   install -m 755 github-ghost_*_${os}_${arch}/github-ghost ~/.local/bin/
+   ```
 
-```bash
-github-ghost ghost --install
-```
+3. Run the interactive setup:
+
+   ```bash
+   github-ghost ghost --install
+   ```
+
+4. Open a new shell.
 
 Setup asks for the three `GH_GHOST_*` settings and writes them to a marked block in `.zshenv` (in `ZDOTDIR` if that is set, otherwise `HOME`). Running it again replaces that block and keeps the rest of the file.
 
 Setup also offers to create a `gh` symlink next to the first `github-ghost` in `PATH` that is outside a git repository, so scripts and coding agents use the wrapper. That directory must come before the real `gh` in `PATH`, and setup warns if it does not. It won't replace an existing `gh` that isn't github-ghost. Once the symlink is in place, `gh ghost --install` also runs setup.
 
-The wrapper skips itself when it looks for the real `gh`.
-
 `github-ghost ghost --version` or `-v` prints the version.
 
-## Configuration
+## 🎛️ Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -43,7 +55,7 @@ The wrapper skips itself when it looks for the real `gh`.
 
 Without `GH_GHOST_ISSUE_REPO`, every command prints a warning on stderr and passes through to `gh` unchanged.
 
-## Behavior
+## 👀 Behavior
 
 The target repository comes from `-R`, then `GH_REPO`, then `gh repo set-default`, then the `upstream`, `github`, and `origin` remotes. If there is no GitHub target, the command runs unchanged. It also runs unchanged when the target is the issues repository itself, or when `GH_HOST` names a host other than `github.com`.
 
@@ -57,14 +69,24 @@ For `list` and `create`, a missing label is created if the target repository exi
 
 Issue URLs name their own repository, so commands given URLs run unchanged.
 
-## Limitations
+## 🚧 Limitations
 
 - Output shows the `repo: ...` label, and headers and URLs show the issues repository.
 - `gh api` and `gh search issues` are not rewritten.
 - User-defined `gh` aliases are not expanded, so they run unchanged.
 - An unknown `gh issue` flag is an error, because the wrapper can't tell whether the next argument is that flag's value. A new `gh` flag needs an entry in the `commands` table in `main.go`.
 
-## Release
+## 🛠️ Development
+
+Build from source and install to `~/.local/bin`:
+
+```bash
+make install
+```
+
+Set `PREFIX` or `BINDIR` to install somewhere else. `make build`, `make test`, `make vet`, `make fmt`, `make uninstall`, and `make clean` are also available.
+
+### 🚀 Release
 
 Commit everything on `main`, then run:
 
