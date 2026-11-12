@@ -10,6 +10,8 @@ A wrapper around the `gh` CLI that makes one private issues repository behave li
 
 Only `gh issue ...` commands are rewritten. Everything else goes to the real `gh` unchanged.
 
+This tool is for people. To tell your coding agent to use a private issue tracker separate from a public code repo, see [Keep Your Agent's Issues Private](BLOG_POST_URL).
+
 ## 🪄 Install
 
 github-ghost runs on macOS and Linux. You need [`gh`](https://cli.github.com) installed and signed in, and `~/.local/bin` in your `PATH`.
