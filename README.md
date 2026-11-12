@@ -10,7 +10,7 @@ A wrapper around the `gh` CLI that makes one private issues repository behave li
 
 Only `gh issue ...` commands are rewritten. Everything else goes to the real `gh` unchanged.
 
-This tool is for people. To tell your coding agent to use a private issue tracker separate from a public code repo, see [Keep Your Agent's Issues Private](BLOG_POST_URL).
+This tool is for people. To tell your coding agent to use a private issue tracker separate from a public code repo, see [Keep Your Agent's Issues Private](docs/keep-your-agents-issues-private.md).
 
 ## 🪄 Install
 
