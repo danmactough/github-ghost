@@ -391,7 +391,7 @@ func runInstallWith(t *testing.T, dir string, input string, env map[string]strin
 	if _, err := os.Stat(self); err != nil {
 		writeExecutable(t, self)
 	}
-	merged := map[string]string{"HOME": dir, "PATH": dir}
+	merged := map[string]string{"HOME": dir, "PATH": dir, "SHELL": "/bin/zsh"}
 	for key, value := range env {
 		merged[key] = value
 	}
@@ -482,7 +482,7 @@ func TestInstallReplacesBlockAndKeepsOtherLines(t *testing.T) {
 		t.Fatal(result.err)
 	}
 	got := readFile(t, path)
-	if strings.Contains(got, "me/one") || strings.Count(got, zshenvBlockStart) != 1 {
+	if strings.Contains(got, "me/one") || strings.Count(got, startupBlockStart) != 1 {
 		t.Fatalf("got %q", got)
 	}
 	if !strings.HasPrefix(got, "export BEFORE=1\n") || !strings.HasSuffix(got, "export AFTER=1\n") {
@@ -525,6 +525,63 @@ func TestInstallUsesZdotdir(t *testing.T) {
 	}
 }
 
+func TestInstallWritesProfileForBash(t *testing.T) {
+	dir := t.TempDir()
+	result := runInstallWith(t, dir, "me/issues\n\n\nn\n", map[string]string{"SHELL": "/usr/bin/bash", "ZDOTDIR": t.TempDir()})
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(dir, ".profile")), "me/issues") {
+		t.Fatal(".profile was not written")
+	}
+	for _, name := range []string{".zshenv", ".bash_profile", ".bash_login"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s should not exist: %v", name, err)
+		}
+	}
+	if !strings.Contains(result.output, "source '"+filepath.Join(dir, ".profile")+"'") {
+		t.Fatalf("got %q", result.output)
+	}
+}
+
+func TestInstallUsesFirstBashLoginFileThatExists(t *testing.T) {
+	cases := []struct {
+		existing []string
+		want     string
+	}{
+		{[]string{".bash_login", ".profile"}, ".bash_login"},
+		{[]string{".bash_profile", ".bash_login", ".profile"}, ".bash_profile"},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		for _, name := range c.existing {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("export KEEP=1\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if result := runInstallWith(t, dir, "me/issues\n\n\nn\n", map[string]string{"SHELL": "/bin/bash"}); result.err != nil {
+			t.Fatal(result.err)
+		}
+		for _, name := range c.existing {
+			if got := strings.Contains(readFile(t, filepath.Join(dir, name)), "me/issues"); got != (name == c.want) {
+				t.Fatalf("%v: %s written = %v", c.existing, name, got)
+			}
+		}
+	}
+}
+
+func TestInstallRefusesOtherShellsBeforeAsking(t *testing.T) {
+	for _, shell := range []string{"/usr/bin/fish", ""} {
+		result := runInstallWith(t, t.TempDir(), "me/issues\n\n\ny\n", map[string]string{"SHELL": shell})
+		if result.err == nil || !strings.Contains(result.err.Error(), "supports zsh and bash") {
+			t.Fatalf("%q: got %v", shell, result.err)
+		}
+		if result.output != "" {
+			t.Fatalf("%q: asked questions: %q", shell, result.output)
+		}
+	}
+}
+
 func TestInstallChangesNothingWhenInputEnds(t *testing.T) {
 	result := runInstallWith(t, t.TempDir(), "me/issues\n", nil)
 	if result.err == nil || !strings.Contains(result.err.Error(), "nothing was changed") {
@@ -536,7 +593,7 @@ func TestInstallChangesNothingWhenInputEnds(t *testing.T) {
 }
 
 func TestInstallRefusesIncompleteBlock(t *testing.T) {
-	if _, err := replaceZshenvBlock(zshenvBlockStart+"\nexport X=1\n", "new"); err == nil {
+	if _, err := replaceStartupBlock(startupBlockStart+"\nexport X=1\n", "new"); err == nil {
 		t.Fatal("accepted incomplete block")
 	}
 }

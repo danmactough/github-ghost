@@ -40,7 +40,7 @@ github-ghost runs on macOS and Linux. You need [`gh`](https://cli.github.com) in
 
 4. Open a new shell.
 
-Setup asks for the three `GH_GHOST_*` settings and writes them to a marked block in `.zshenv` (in `ZDOTDIR` if that is set, otherwise `HOME`). Running it again replaces that block and keeps the rest of the file.
+Setup asks for the three `GH_GHOST_*` settings and writes them to a marked block in the startup file for your login shell (`$SHELL`): `.zshenv` for zsh (in `ZDOTDIR` if that is set, otherwise `HOME`), or, for bash, the first of `~/.bash_profile`, `~/.bash_login`, and `~/.profile` that exists (`~/.profile` if none do). Bash reads that file only in login shells, so on Linux you may need to log out and back in. Other shells are not supported; set the variables yourself. Running it again replaces that block and keeps the rest of the file.
 
 Setup also offers to create a `gh` symlink next to the first `github-ghost` in `PATH` that is outside a git repository, so scripts and coding agents use the wrapper. That directory must come before the real `gh` in `PATH`, and setup warns if it does not. It won't replace an existing `gh` that isn't github-ghost. Once the symlink is in place, `gh ghost --install` also runs setup.
 

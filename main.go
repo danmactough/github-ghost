@@ -592,8 +592,8 @@ func linkGH(pathEnv string) ([]string, error) {
 const (
 	binaryName         = "github-ghost"
 	defaultLabelPrefix = "repo: "
-	zshenvBlockStart   = "# >>> github-ghost >>>"
-	zshenvBlockEnd     = "# <<< github-ghost <<<"
+	startupBlockStart  = "# >>> github-ghost >>>"
+	startupBlockEnd    = "# <<< github-ghost <<<"
 )
 
 type installOptions struct {
@@ -644,9 +644,9 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
-func replaceZshenvBlock(content string, block string) (string, error) {
-	start := strings.Index(content, zshenvBlockStart)
-	end := strings.Index(content, zshenvBlockEnd)
+func replaceStartupBlock(content string, block string) (string, error) {
+	start := strings.Index(content, startupBlockStart)
+	end := strings.Index(content, startupBlockEnd)
 	if start == -1 && end == -1 {
 		if content == "" {
 			return block + "\n", nil
@@ -654,13 +654,13 @@ func replaceZshenvBlock(content string, block string) (string, error) {
 		return strings.TrimRight(content, "\n") + "\n\n" + block + "\n", nil
 	}
 	if start == -1 || end < start {
-		return "", fmt.Errorf("found an incomplete %q block; fix it by hand and run setup again", zshenvBlockStart)
+		return "", fmt.Errorf("found an incomplete %q block; fix it by hand and run setup again", startupBlockStart)
 	}
-	return content[:start] + block + content[end+len(zshenvBlockEnd):], nil
+	return content[:start] + block + content[end+len(startupBlockEnd):], nil
 }
 
-// updateZshenv writes through a symlink so a .zshenv kept in a dotfiles repository stays linked.
-func updateZshenv(path string, block string) error {
+// updateStartupFile writes through a symlink so a startup file kept in a dotfiles repository stays linked.
+func updateStartupFile(path string, block string) error {
 	target := path
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		target = resolved
@@ -677,11 +677,11 @@ func updateZshenv(path string, block string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	updated, err := replaceZshenvBlock(content, block)
+	updated, err := replaceStartupBlock(content, block)
 	if err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(target), ".zshenv.github-ghost-*")
+	temp, err := os.CreateTemp(filepath.Dir(target), ".github-ghost-*")
 	if err != nil {
 		return err
 	}
@@ -699,9 +699,50 @@ func updateZshenv(path string, block string) error {
 	return os.Rename(temp.Name(), target)
 }
 
+// startupFile follows SHELL, the user's login shell, not the shell running setup. Zsh reads .zshenv
+// in every shell. Bash has no such file, so setup uses the login-shell file: login shells set the
+// environment that later shells inherit, and .bashrc often exits early in non-interactive shells.
+// A bash login shell reads only the first of these that exists, so creating .bash_profile would
+// make bash skip an existing .profile.
+func startupFile(getenv func(string) string) (string, error) {
+	home := getenv("HOME")
+	shell := filepath.Base(getenv("SHELL"))
+	switch shell {
+	case "zsh":
+		dir := getenv("ZDOTDIR")
+		if dir == "" {
+			dir = home
+		}
+		if dir == "" {
+			return "", errors.New("could not find .zshenv: HOME is not set")
+		}
+		return filepath.Join(dir, ".zshenv"), nil
+	case "bash":
+		if home == "" {
+			return "", errors.New("could not find .profile: HOME is not set")
+		}
+		for _, name := range []string{".bash_profile", ".bash_login"} {
+			path := filepath.Join(home, name)
+			if _, err := os.Stat(path); err == nil {
+				return path, nil
+			}
+		}
+		return filepath.Join(home, ".profile"), nil
+	}
+	if shell == "." {
+		return "", errors.New("SHELL is not set; setup supports zsh and bash")
+	}
+	return "", fmt.Errorf("setup supports zsh and bash, not %s; set GH_GHOST_ISSUE_REPO, GH_GHOST_LABEL_PREFIX, and GH_GHOST_LABEL_COLOR in your shell's startup file instead", shell)
+}
+
 func runInstall(options installOptions) error {
 	reader := bufio.NewReader(options.in)
 	out := options.out
+
+	startupPath, err := startupFile(options.getenv)
+	if err != nil {
+		return err
+	}
 
 	issueRepo, err := askValue(valueQuestion{reader, out, "Issue repository (owner/name)", options.getenv("GH_GHOST_ISSUE_REPO"), func(value string) (string, error) {
 		target, ok := githubRepo(strings.TrimSpace(value))
@@ -756,27 +797,19 @@ func runInstall(options installOptions) error {
 		return err
 	}
 
-	zshDir := options.getenv("ZDOTDIR")
-	if zshDir == "" {
-		zshDir = options.getenv("HOME")
-	}
-	if zshDir == "" {
-		return errors.New("could not find .zshenv: HOME is not set")
-	}
-	zshenvPath := filepath.Join(zshDir, ".zshenv")
 	lines := []string{
-		zshenvBlockStart,
+		startupBlockStart,
 		"export GH_GHOST_ISSUE_REPO=" + shellQuote(issueRepo),
 		"export GH_GHOST_LABEL_PREFIX=" + shellQuote(labelPrefix),
 	}
 	if labelColor != "" {
 		lines = append(lines, "export GH_GHOST_LABEL_COLOR="+shellQuote(labelColor))
 	}
-	lines = append(lines, zshenvBlockEnd)
-	if err := updateZshenv(zshenvPath, strings.Join(lines, "\n")); err != nil {
+	lines = append(lines, startupBlockEnd)
+	if err := updateStartupFile(startupPath, strings.Join(lines, "\n")); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Updated %s\n", zshenvPath)
+	fmt.Fprintf(out, "Updated %s\n", startupPath)
 
 	if installSymlink == "y" {
 		messages, err := linkGH(options.getenv("PATH"))
@@ -787,7 +820,7 @@ func runInstall(options installOptions) error {
 			fmt.Fprintln(out, message)
 		}
 	}
-	fmt.Fprintf(out, "Open a new shell, or run: source %s\n", shellQuote(zshenvPath))
+	fmt.Fprintf(out, "Open a new shell, or run: source %s\n", shellQuote(startupPath))
 	return nil
 }
 
